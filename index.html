@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>3D Models</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- model-viewer: renders GLB interactively -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <style>
+    :root { --maxw: 1200px; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: #fff; color: #111;
+      font-family: system-ui, Arial, sans-serif;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    header {
+      width: 40%; max-width: var(--maxw);
+      padding: 14px 16px; margin: 0 auto;
+      display: flex; align-items: baseline; gap: .5rem;
+      border-bottom: 1px solid #eaeaea;
+    }
+    header h1 { margin: 0; font-size: 1.4rem; }
+    main { width: 100%; max-width: var(--maxw); padding: 10px 16px 32px; }
+    .card {
+      margin: 22px auto; padding-bottom: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    .card h2 {
+      margin: 8px 0 10px; font-size: 1.15rem; font-weight: 600;
+    }
+    model-viewer {
+      width: 100%; height: 70vh; background: #fff;
+      border-radius: 8px;
+    }
+    .legend-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      margin-top: 10px; margin-bottom: 6px;
+    }
+    .legend {
+      width: 100%; max-width: 700px; height: auto; display: block;
+    }
+    .legend-label { margin-top: 6px; font-size: 1rem; }
+    footer { color: #666; font-size: .9rem; margin: 18px 0 8px; }
+    @media (max-width: 800px) {
+      model-viewer { height: 60vh; }
+      .legend { max-width: 95%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Vacuum Field Coils</h1>
+  </header>
+
+  <main id="gallery"></main>
+
+  <footer>Tip: drag to rotate, scroll/pinch to zoom.</footer>
+
+  <script>
+    // ---- list your three models here (prefixes that match your files) ----
+    // Example: you already have L_2_* now; add L_25_* and one more (e.g., L_10_*)
+    const KEYS = ["L_25", "L_4", "L_2"];   // <--- change to your exact three
+
+    // Optional: nicer display names per key (fallback = key)
+    const TITLES = {
+      "L_25":  "L = 25, Rm = 11.1",
+      "L_4": "L = 4, Rm = 6.6",
+      "L_2": "L = 2, Rm = 4.2"
+    };
+
+    // Build cards
+    const gallery = document.getElementById("gallery");
+    for (const key of KEYS) {
+      const glb = `${key}_scene.glb`;
+      const png = `${key}_colorbar.png`;
+
+      const card = document.createElement("section");
+      card.className = "card";
+      card.innerHTML = `
+        <h2 id="${key}">${TITLES[key] || key}</h2>
+        <model-viewer src="${glb}" alt="${key} model"
+          camera-controls auto-rotate exposure="1.0" shadow-intensity="0.5">
+        </model-viewer>
+        <div class="legend-wrap">
+          <img class="legend" src="${png}" alt="${key} colorbar">
+        </div>
+      `;
+      gallery.appendChild(card);
+    }
+  </script>
+</body>
+</html>
