@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>grad B with optional quivers</title>
+  <title>Toggle scalars + arrows</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
   <style>
@@ -12,7 +12,7 @@
     header { width:100%; max-width:var(--maxw); padding:14px 16px; border-bottom:1px solid #eaeaea; }
     header h1 { margin:0; font-size:1.4rem; }
     main { width:100%; max-width:var(--maxw); padding:14px 16px 32px; }
-    .row { display:flex; gap:.5rem; align-items:center; margin-bottom:10px; }
+    .controls { display:flex; gap:.5rem; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
     button { padding:.45rem .75rem; border:1px solid #ccc; border-radius:8px; background:#f7f7f7; cursor:pointer; }
     button:hover { background:#eee; }
     model-viewer { width:100%; height:70vh; background:#fff; border-radius:8px; }
@@ -22,38 +22,66 @@
   </style>
 </head>
 <body>
-  <header><h1>grad B (toggle quiver arrows)</h1></header>
+  <header><h1>Toggle Scalars + Quiver Arrows</h1></header>
 
   <main>
-    <div class="row">
-      <button id="toggle" type="button">Show arrows</button>
+    <div class="controls">
+      <button id="toggle-scalar" type="button">Switch to κ (kappa)</button>
+      <button id="toggle-arrows" type="button">Show arrows</button>
     </div>
 
-    <model-viewer id="mv" src="graB_eq1.glb" alt="gradB surface"
+    <model-viewer id="mv" src="graB_eq1.glb" alt="3D model"
       camera-controls auto-rotate exposure="1.0" shadow-intensity="0.5"
       disable-backfaces disable-occlusion>
     </model-viewer>
 
     <div class="legend-wrap">
-      <img class="legend" src="gradB_eq1_colorbar.png" alt="Colorbar for gradB surface">
+      <img id="legend" class="legend" src="gradB_eq1_colorbar.png" alt="Colorbar">
     </div>
   </main>
 
   <script>
-    const BASE   = "graB_eq1.glb";      // no arrows
-    const ARROWS = "graB_q_eq1.glb";    // with arrows
-    const mv  = document.getElementById("mv");
-    const btn = document.getElementById("toggle");
-    let showingArrows = false;
+    // --- file mapping ---
+    const MODELS = {
+      gradB: { base: "graB_eq1.glb", arrows: "graB_q_eq1.glb", legend: "gradB_eq1_colorbar.png" },
+      kappa: { base: "kappa_eq1.glb", arrows: "kappa_q_eq1.glb", legend: "kappa_eq1_colorbar.png" }
+    };
 
-    // Preload the alternate model so the toggle feels instant
-    fetch(ARROWS).catch(()=>{});
+    // --- state ---
+    let scalar = "gradB";   // current scalar family
+    let arrows = false;     // arrows on/off
 
-    btn.addEventListener("click", () => {
-      showingArrows = !showingArrows;
-      mv.src = showingArrows ? ARROWS : BASE;
-      btn.textContent = showingArrows ? "Hide arrows" : "Show arrows";
+    const mv       = document.getElementById("mv");
+    const legend   = document.getElementById("legend");
+    const btnScalar = document.getElementById("toggle-scalar");
+    const btnArrows = document.getElementById("toggle-arrows");
+
+    function update() {
+      const files = MODELS[scalar];
+      mv.src = arrows ? files.arrows : files.base;
+      legend.src = files.legend;
+      legend.alt = scalar + " colorbar";
+      btnArrows.textContent = arrows ? "Hide arrows" : "Show arrows";
+      btnScalar.textContent = (scalar === "gradB") ? "Switch to κ (kappa)" : "Switch to grad B";
+    }
+
+    // preload all models
+    for (const key in MODELS) {
+      fetch(MODELS[key].base).catch(()=>{});
+      fetch(MODELS[key].arrows).catch(()=>{});
+    }
+
+    btnScalar.addEventListener("click", () => {
+      scalar = (scalar === "gradB") ? "kappa" : "gradB";
+      update();
     });
+
+    btnArrows.addEventListener("click", () => {
+      arrows = !arrows;
+      update();
+    });
+
+    update(); // initial render
   </script>
 </body>
 </html>
