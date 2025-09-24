@@ -4,165 +4,193 @@
   <meta charset="utf-8" />
   <title>Interactive 3D Scalars</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- model-viewer -->
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <!-- MathJax for LaTeX -->
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+
   <style>
-    :root { --maxw: 1200px; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, Arial, sans-serif; color:#111; background:#fff;
-           display:flex; flex-direction:column; align-items:center; }
-    header { width:100%; max-width:var(--maxw); padding:16px 18px 6px; }
-    header h1 { margin:0; font-size:1.6rem; }
-    .controls { width:100%; max-width:var(--maxw); padding:6px 18px 0;
-                display:flex; gap:.75rem; align-items:center; flex-wrap:wrap; }
-    main { width:100%; max-width:var(--maxw); padding:10px 18px 28px; }
-    #viewerHost { width:100%; height:70vh; border:2px solid #cfe3ff; border-radius:8px; }
-    #status { text-align:center; min-height:1.4em; margin:6px 0 2px; color:#666; }
-    #status.ok { color:#2e7d32; }  /* green */
-    #status.err { color:#b00020; } /* red */
-    .legend-wrap { display:flex; flex-direction:column; align-items:center; margin:10px 0 6px; }
-    .legend { width:100%; max-width:820px; height:auto; display:block; }
-    .legend-label, .tiny { font-size:.95rem; color:#666; text-align:center; }
-    .tiny a { color:#1a73e8; text-decoration:none; }
-    .tiny a:hover { text-decoration:underline; }
-    @media (max-width:800px){ #viewerHost{ height:60vh; } .legend{ max-width:95%; } }
+    :root { --maxw: 1100px; }
+    body { margin:0; font-family:system-ui, -apple-system, Segoe UI, Arial, sans-serif; color:#111; }
+    header { max-width:var(--maxw); margin:16px auto 8px; padding:0 12px; }
+    h1 { margin:0; font-size:20px; font-weight:700; }
+    .controls { max-width:var(--maxw); margin:10px auto 6px; padding:0 12px;
+                display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+
+    /* Scalar "buttons" (radio pills) with LaTeX labels */
+    .pills { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .pills input[type="radio"] { display:none; }
+    .pills label {
+      cursor:pointer; padding:6px 12px; border:1px solid #cfd8e3;
+      border-radius:999px; background:#fff; user-select:none;
+    }
+    .pills input[type="radio"]:checked + label {
+      background:#e8f0fe; border-color:#7aa0ff;
+    }
+
+    /* Arrows toggle */
+    .toggle { display:flex; align-items:center; gap:8px; }
+
+    /* Title + status */
+    #title { text-align:center; margin:8px auto 0; font-size:20px; font-weight:700; min-height:1.6em; }
+    #status { text-align:center; margin:4px auto 8px; font-size:14px; color:#666; min-height:1.2em; }
+
+    /* Viewer + legend */
+    .frame { max-width:var(--maxw); margin:0 auto; border:2px solid #cfe3ff; border-radius:8px; }
+    #viewerHost { width:100%; height:62vh; }
+    .legend-wrap { max-width:var(--maxw); margin:10px auto 20px; text-align:center; padding:0 12px; }
+    .legend { width:100%; max-width:900px; height:auto; display:block; margin:0 auto; }
+
+    @media (max-width:800px){
+      #viewerHost{ height:60vh; }
+      .legend { max-width:95%; }
+    }
   </style>
 </head>
 <body>
   <header><h1>Interactive 3D Scalars</h1></header>
 
   <div class="controls">
-    <label for="scalar">Scalar:</label>
-    <select id="scalar">
-      <option value="kappa">kappa</option>
-      <option value="gradB">gradB</option>
-      <option value="jdia">jdia</option>
-    </select>
-    <button id="toggle-arrows" type="button">Show arrows</button>
+    <div class="pills" id="scalarPills" role="tablist" aria-label="Scalar selection">
+      <!-- Default = kappa -->
+      <input type="radio" name="scalar" id="s_kappa" value="kappa" checked>
+      <label for="s_kappa">\( \kappa \)</label>
+
+      <input type="radio" name="scalar" id="s_gradB" value="gradB">
+      <label for="s_gradB">\( \nabla |B| \)</label>
+
+      <input type="radio" name="scalar" id="s_jdia" value="jdia">
+      <label for="s_jdia">\( J_{\mathrm{dia}} \)</label>
+    </div>
+
+    <div class="toggle">
+      <input type="checkbox" id="arrows">
+      <label for="arrows">\( \text{Arrows} \)</label>
+    </div>
   </div>
 
-  <main>
-    <h2 id="title" style="text-align:center;margin:8px 0 6px;">kappa</h2>
-    <div id="status"></div>
+  <div id="title">\( \kappa \)</div>
+  <div id="status"></div>
 
-    <!-- We recreate the <model-viewer> inside this host on every switch -->
+  <div class="frame">
     <div id="viewerHost"></div>
+  </div>
 
-    <p class="tiny">Current model URL: <a id="currentLink" href="#" target="_blank" rel="noopener">—</a></p>
+  <div class="legend-wrap">
+    <img id="legend" class="legend" src="kappa_eq1_colorbar.png" alt="colorbar">
+    <!-- no label below the colorbar per your request -->
+  </div>
 
-    <div class="legend-wrap">
-      <img id="legend" class="legend" src="kappa_eq1_colorbar.png" alt="kappa colorbar">
-      <div id="legend-label" class="legend-label">kappa</div>
-    </div>
-  </main>
+<script>
+  // ------- filenames (must match repo exactly; case-sensitive) -------
+  const MAP = {
+    kappa: { base: "kappa_eq1.glb",  arrows: "kappa_q_eq1.glb",  legend: "kappa_eq1_colorbar.png",  latex: "\\( \\\\kappa \\\\)" },
+    gradB: { base: "gradB_eq1.glb",  arrows: "gradB_q_eq1.glb",  legend: "gradB_eq1_colorbar.png", latex: "\\( \\\\nabla |B| \\\\)" },
+    jdia:  { base: "jdia_eq1.glb",   arrows: "jdia_q_eq1.glb",   legend: "jdia_eq1_colorbar.png",   latex: "\\( J_{\\\\mathrm{dia}} \\\\)" }
+  };
 
-  <script>
-    // Exact filenames on disk
-    const MODELS = {
-      kappa: { base: "kappa_eq1.glb",  arrows: "kappa_q_eq1.glb",  legend: "kappa_eq1_colorbar.png",  label: "kappa" },
-      gradB: { base: "gradB_eq1.glb",  arrows: "gradB_q_eq1.glb",  legend: "gradB_eq1_colorbar.png",  label: "gradB" },
-      jdia:  { base: "jdia_eq1.glb",   arrows: "jdia_q_eq1.glb",   legend: "jdia_eq1_colorbar.png",   label: "jdia" }
-    };
+  // ------- elements + state -------
+  const host      = document.getElementById('viewerHost');
+  const titleEl   = document.getElementById('title');
+  const statusEl  = document.getElementById('status');
+  const legendImg = document.getElementById('legend');
+  const pills     = document.getElementById('scalarPills');
+  const arrowsEl  = document.getElementById('arrows');
 
-    // UI handles
-    const host        = document.getElementById("viewerHost");
-    const statusEl    = document.getElementById("status");
-    const legendImg   = document.getElementById("legend");
-    const legendLabel = document.getElementById("legend-label");
-    const selScalar   = document.getElementById("scalar");
-    const btnArrows   = document.getElementById("toggle-arrows");
-    const title       = document.getElementById("title");
-    const linkEl      = document.getElementById("currentLink");
+  let scalar = 'kappa';
+  let showArrows = false;
+  let loadToken = 0;
 
-    // State
-    let scalar = selScalar.value;   // "kappa" initially
-    let arrows = false;             // start with scalar surface only
-    let loadToken = 0;              // cancel stale loads
+  function setStatusLoading(on) {
+    statusEl.textContent = on ? 'Loading…' : '';
+  }
 
-    // Helpers
-    function setStatus(text, cls="") {
-      statusEl.className = cls;
-      statusEl.textContent = text || "";
-    }
+  function latexTitle(s) {
+    titleEl.innerHTML = MAP[s].latex;
+    if (window.MathJax?.typesetPromise) MathJax.typesetPromise([titleEl]);
+  }
 
-    function buildViewer() {
-      const mv = document.createElement("model-viewer");
-      mv.setAttribute("camera-controls", "");
-      mv.setAttribute("auto-rotate", "");
-      mv.setAttribute("exposure", "1.0");
-      mv.setAttribute("shadow-intensity", "0.5");
-      mv.setAttribute("bounds", "tight");
-      mv.setAttribute("environment-image", "neutral");
-      mv.setAttribute("interaction-prompt", "none");
-      mv.setAttribute("disable-occlusion", "");  // keep vectors visible
-      mv.setAttribute("disable-backfaces", "");  // show interior faces
-      mv.style.width = "100%";
-      mv.style.height = "100%";
-      mv.style.background = "#fff";
-      mv.style.borderRadius = "8px";
-      return mv;
-    }
+  function buildViewer() {
+    const mv = document.createElement('model-viewer');
+    mv.setAttribute('camera-controls', '');
+    mv.setAttribute('auto-rotate', '');
+    mv.setAttribute('exposure', '1.0');
+    mv.setAttribute('shadow-intensity', '0.5');
+    mv.setAttribute('bounds', 'tight');
+    mv.setAttribute('environment-image', 'neutral');
+    mv.setAttribute('interaction-prompt', 'none');
+    mv.setAttribute('disable-backfaces', '');
+    mv.setAttribute('disable-occlusion', '');
+    mv.style.width = '100%';
+    mv.style.height = '100%';
+    mv.style.background = '#fff';
+    mv.style.borderRadius = '8px';
+    return mv;
+  }
 
-    async function loadModel(url) {
-      const myToken = ++loadToken;
+  async function loadModel(url) {
+    const myToken = ++loadToken;
+    setStatusLoading(true);
 
-      // present the *exact* URL we're loading (no query)
-      linkEl.textContent = url;
-      linkEl.href = url;
+    // Fetch as bytes, do a light GLB header check, then feed a Blob URL
+    try {
+      const res = await fetch(url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now(), { cache: 'no-store' });
+      const buf = await res.arrayBuffer();
 
-      // Basic existence check
-      setStatus(`Checking ${url} …`);
-      try {
-        const r = await fetch(url, { method: "GET" });
-        if (!r.ok) { setStatus(`HTTP ${r.status} for ${url}`, "err"); return; }
-      } catch (e) {
-        console.error(e);
-        setStatus(`Fetch failed for ${url}`, "err");
-        return;
-      }
+      if (buf.byteLength < 12) throw new Error('tiny'); // minimal check, but we hide details per your request
+      const dv = new DataView(buf, 0, 12);
+      if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('magic');
 
-      // Recreate viewer fresh
-      host.innerHTML = "";
+      // recreate the viewer each load
+      host.innerHTML = '';
       const mv = buildViewer();
       host.appendChild(mv);
 
-      // Wire events before setting src
-      btnArrows.disabled = true;
-      selScalar.disabled = true;
-      setStatus(`Loading ${url} …`);
+      const blob = new Blob([buf], { type: 'model/gltf-binary' });
+      const objectURL = URL.createObjectURL(blob);
 
-      const finish = (ok, msg) => {
-        if (myToken !== loadToken) return; // newer load started; ignore
-        btnArrows.disabled = false;
-        selScalar.disabled = false;
-        setStatus(msg, ok ? "ok" : "err");
-      };
+      mv.addEventListener('load', () => {
+        if (myToken !== loadToken) return;
+        setStatusLoading(false);
+        // free later
+        setTimeout(() => URL.revokeObjectURL(objectURL), 10000);
+      }, { once:true });
 
-      mv.addEventListener("load",  () => finish(true, "Loaded"),                 { once:true });
-      mv.addEventListener("error", () => finish(false, "Failed to display model"), { once:true });
+      // no verbose error text—just stop showing "Loading…"
+      mv.addEventListener('error', () => {
+        if (myToken !== loadToken) return;
+        setStatusLoading(false);
+      }, { once:true });
 
-      // Small cache-bust to avoid stale decoder state
-      mv.src = `${url}?v=${Date.now()}`;
+      mv.src = objectURL;
+    } catch {
+      if (myToken !== loadToken) return;
+      setStatusLoading(false);
     }
+  }
 
-    function update() {
-      const files = MODELS[scalar];
-      const url = arrows ? files.arrows : files.base;
+  function update() {
+    const files = MAP[scalar];
+    latexTitle(scalar);
+    legendImg.src = files.legend;
+    loadModel(showArrows ? files.arrows : files.base);
+  }
 
-      title.textContent = files.label;
-      legendImg.src = files.legend;
-      legendImg.alt = `${files.label} colorbar`;
-      legendLabel.textContent = files.label;
-      btnArrows.textContent = arrows ? "Hide arrows" : "Show arrows";
-
-      loadModel(url);
+  // ------- events -------
+  pills.addEventListener('change', (e) => {
+    if (e.target && e.target.name === 'scalar') {
+      scalar = e.target.value;
+      update();
     }
-
-    // Events
-    selScalar.addEventListener("change", () => { scalar = selScalar.value; arrows = false; update(); });
-    btnArrows.addEventListener("click",   () => { arrows = !arrows; update(); });
-
-    // Initial render
+  });
+  arrowsEl.addEventListener('change', () => {
+    showArrows = arrowsEl.checked;
     update();
-  </script>
+  });
+
+  // Initial render
+  update();
+</script>
 </body>
 </html>
