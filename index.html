@@ -5,94 +5,215 @@
   <title>Interactive 3D Scalars</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- model-viewer -->
-  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <!-- model-viewer (web component for GLB) -->
+  <script type="module"
+    src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 
-  <!-- MathJax -->
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <!-- MathJax (LaTeX in the title) -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(', '\\)'], ['$', '$']] },
+      startup: { typeset: false }   // we will trigger typesetting manually
+    };
+  </script>
+  <script id="MathJax-script" async
+    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
   <style>
-    body { margin:0; font-family: system-ui, sans-serif; text-align:center; }
-    header { padding:10px; font-size:1.4rem; font-weight:bold; }
-    .controls { margin:10px; display:flex; justify-content:center; gap:1rem; align-items:center; }
-    button {
-      border:1px solid #ccc; border-radius:20px; padding:4px 12px; background:#f9f9f9; cursor:pointer;
+    :root { --maxw: 1200px; --accent: #2563eb; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: #fff; color: #111;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      display: flex; flex-direction: column; align-items: center;
     }
-    button.active { background:#eef; border-color:#66f; }
-    model-viewer { width:100%; height:70vh; background:#fff; border-radius:8px; }
-    .legend-wrap { margin-top:8px; }
-    .legend { max-width:700px; width:100%; }
-    #status { margin:8px 0; font-size:1rem; color:#444; }
+    header, main { width: 100%; max-width: var(--maxw); }
+    header {
+      padding: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .group { display: inline-flex; gap: 8px; align-items: center; }
+    .pill {
+      appearance: none; border: 1.5px solid #d1d5db; background: #fff; color: #111;
+      padding: 6px 12px; border-radius: 999px; font-size: 14px; cursor: pointer;
+      transition: all .15s ease;
+    }
+    .pill:hover { border-color: #9ca3af; }
+    .pill.active {
+      color: #fff; background: var(--accent); border-color: var(--accent);
+      box-shadow: 0 1px 2px rgb(0 0 0 / .08);
+    }
+    label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; }
+    #title {
+      margin: 6px auto 10px; text-align: center; font-weight: 600; font-size: 22px;
+      min-height: 28px;  /* keeps layout steady while switching */
+    }
+    #status {
+      text-align: center; min-height: 20px; font-size: 14px; margin-bottom: 6px;
+    }
+    #status.loading { color: #0a7; }
+    #status.err { color: #c026d3; } /* gentle magenta for errors */
+    model-viewer {
+      width: 100%; height: 68vh; background: #fff; border-radius: 10px;
+      outline: 2px solid #dbeafe; outline-offset: 4px;
+    }
+    .legend-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      margin: 12px 0 24px;
+    }
+    .legend { width: min(900px, 95%); height: auto; display: block; }
+    @media (max-width: 900px) {
+      model-viewer { height: 60vh; }
+    }
   </style>
 </head>
 <body>
-  <header>Interactive 3D Scalars</header>
+  <header>
+    <div class="group" id="scalarButtons">
+      <button class="pill" data-scalar="kappa">κ</button>
+      <button class="pill" data-scalar="gradB">∇|B|</button>
+      <button class="pill" data-scalar="jdia">J<sub>dia</sub></button>
+    </div>
 
-  <div class="controls">
-    <button id="btn-kappa" data-label="\\( \\kappa \\)">κ</button>
-    <button id="btn-gradB" data-label="\\( \\nabla |B| \\)">∇|B|</button>
-    <button id="btn-jdia" data-label="\\( J_{\\mathrm{dia}} \\)">Jdia</button>
-    <label><input type="checkbox" id="chk-arrows"> Arrows</label>
-  </div>
+    <label class="chk">
+      <input type="checkbox" id="arrowsChk">
+      Arrows
+    </label>
+  </header>
 
-  <h2 id="title"></h2>
-  <div id="status"></div>
+  <main>
+    <div id="title"></div>
+    <div id="status"></div>
 
-  <model-viewer id="mv" src="" camera-controls auto-rotate exposure="1.0"
-    shadow-intensity="0.5" disable-occlusion>
-  </model-viewer>
+    <model-viewer id="mv"
+      camera-controls auto-rotate exposure="1.0" shadow-intensity="0.5"
+      disable-occlusion
+      ar ia-label="3D scalar field">
+    </model-viewer>
 
-  <div class="legend-wrap">
-    <img id="legend" class="legend" src="" alt="Colorbar">
-  </div>
+    <div class="legend-wrap">
+      <img id="legend" class="legend" src="" alt="Colorbar">
+    </div>
+  </main>
 
   <script>
+    // --- File map + LaTeX labels (use String.raw so backslashes are clean) ---
     const MODELS = {
-      kappa: { base: "kappa_eq1.glb", arrows: "kappa_q_eq1.glb", legend: "kappa_eq1_colorbar.png", label: "\\( \\\\kappa \\)" },
-      gradB: { base: "gradB_eq1.glb", arrows: "gradB_q_eq1.glb", legend: "gradB_eq1_colorbar.png", label: "\\( \\\\nabla |B| \\)" },
-      jdia:  { base: "jdia_eq1.glb",  arrows: "jdia_q_eq1.glb",  legend: "jdia_eq1_colorbar.png", label: "\\( J_{\\\\mathrm{dia}} \\)" }
+      kappa: {
+        base:   "kappa_eq1.glb",
+        arrows: "kappa_q_eq1.glb",
+        legend: "kappa_eq1_colorbar.png",
+        label:  String.raw`\(\kappa\)`
+      },
+      gradB: {
+        base:   "gradB_eq1.glb",
+        arrows: "gradB_q_eq1.glb",
+        legend: "gradB_eq1_colorbar.png",
+        label:  String.raw`\(\nabla |B|\)`
+      },
+      jdia: {
+        base:   "jdia_eq1.glb",
+        arrows: "jdia_q_eq1.glb",
+        legend: "jdia_eq1_colorbar.png",
+        label:  String.raw`\(J_{\mathrm{dia}}\)`
+      }
     };
 
-    let scalar = "kappa";
+    // --- UI refs ---
+    const mv        = document.getElementById('mv');
+    const legend    = document.getElementById('legend');
+    const titleDiv  = document.getElementById('title');
+    const statusDiv = document.getElementById('status');
+    const arrowsChk = document.getElementById('arrowsChk');
+    const pills     = [...document.querySelectorAll('#scalarButtons .pill')];
+
+    // --- State ---
+    let scalar = 'kappa';   // default
     let arrows = false;
 
-    const mv = document.getElementById("mv");
-    const legend = document.getElementById("legend");
-    const title = document.getElementById("title");
-    const status = document.getElementById("status");
-    const chkArrows = document.getElementById("chk-arrows");
+    function setStatus(msg = '', cls = '') {
+      statusDiv.className = cls ? cls : '';
+      statusDiv.textContent = msg;
+    }
 
-    // Buttons
-    document.getElementById("btn-kappa").onclick = () => { scalar="kappa"; update(); };
-    document.getElementById("btn-gradB").onclick = () => { scalar="gradB"; update(); };
-    document.getElementById("btn-jdia").onclick  = () => { scalar="jdia";  update(); };
-    chkArrows.onchange = () => { arrows = chkArrows.checked; update(); };
+    // Highlight active scalar button
+    function refreshPills() {
+      pills.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.scalar === scalar);
+      });
+    }
 
-    function setStatus(msg) { status.textContent = msg; }
+    // Disable controls while loading
+    function setControlsDisabled(disabled) {
+      pills.forEach(b => b.disabled = disabled);
+      arrowsChk.disabled = disabled;
+    }
 
-    function setSrc(url) {
-      setStatus("Loading...");
-      mv.src = url;
-      mv.addEventListener("load", () => setStatus(""), { once:true });
-      mv.addEventListener("error", () => setStatus(""), { once:true });
+    // After the model loads, force double-sided materials (no backface culling)
+    function makeDoubleSided() {
+      try {
+        const mdl = mv.model;
+        if (mdl?.materials) {
+          for (const m of mdl.materials) m.doubleSided = true;
+        }
+      } catch {}
     }
 
     function update() {
-      const files = MODELS[scalar];
-      setSrc(arrows ? files.arrows : files.base);
-      legend.src = files.legend;
-      title.innerHTML = files.label;
+      const cfg = MODELS[scalar];
+      const src = arrows ? cfg.arrows : cfg.base;
 
-      // Update active button styles
-      for (let key of ["kappa","gradB","jdia"]) {
-        document.getElementById("btn-"+key).classList.toggle("active", key===scalar);
-      }
+      // UI bits
+      refreshPills();
+      legend.src = cfg.legend;
 
-      // Refresh MathJax
-      if (window.MathJax) MathJax.typesetPromise();
+      // Set LaTeX title and typeset it
+      titleDiv.innerHTML = cfg.label;
+      queueMicrotask(() => {
+        if (window.MathJax?.typesetPromise) {
+          MathJax.typesetClear?.([titleDiv]);
+          MathJax.typesetPromise([titleDiv]).catch(()=>{});
+        }
+      });
+
+      // Start loading
+      setControlsDisabled(true);
+      setStatus('Loading…', 'loading');
+
+      const onLoad = () => {
+        makeDoubleSided();
+        setStatus('','');            // clear message
+        setControlsDisabled(false);
+      };
+
+      const onError = (e) => {
+        // Minimal, user-friendly error
+        setStatus('Failed to display model', 'err');
+        setControlsDisabled(false);
+        // (optional) console for debugging
+        console.error('model-viewer load error', e?.detail || e);
+      };
+
+      mv.addEventListener('load',  onLoad,  { once: true });
+      mv.addEventListener('error', onError, { once: true });
+
+      // Assign source last
+      mv.src = src /* + '?v=1' */;  // uncomment version if you hit cache issues
     }
 
-    // Init
+    // --- Wire up controls ---
+    pills.forEach(btn => {
+      btn.addEventListener('click', () => {
+        scalar = btn.dataset.scalar;
+        update();
+      });
+    });
+    arrowsChk.addEventListener('change', () => {
+      arrows = arrowsChk.checked;
+      update();
+    });
+
+    // Initial UI
+    refreshPills();
     update();
   </script>
 </body>
